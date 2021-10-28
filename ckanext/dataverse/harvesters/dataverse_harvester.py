@@ -61,15 +61,18 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
     ## IHarvester
 
     def validate_config(self, source_config):
-        if not source_config:
-            return source_config
-
         try:
             source_config_obj = json.loads(source_config)
 
-            if 'groups' in source_config_obj:
-                if not isinstance(source_config_obj['groups'], list):
-                    raise ValueError('"groups" should be a list')
+            if 'id_field_name' in source_config_obj:
+                if not isinstance(source_config_obj['id_field_name'], str):
+                    raise ValueError('"id_field_name" should be a string')
+            else:
+                raise KeyError("Cannot process configuration not identifying 'id_field_name'.")
+
+            if 'filter' in source_config_obj:
+                if not isinstance(source_config_obj['filter'], str):
+                    raise ValueError('"filter" should be a string')
 
         except ValueError as e:
             raise e
@@ -78,8 +81,10 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
 
     def _get_resources(self, url):
         """ return name, descriptions and subjects """
+        filter_str = self.source_config('filter', '*')
+        final_url = '%s/api/search?q=%s'.format(url, filter_str)
         log.info('Retrieving data from URL %s', url)
-        request = urlopen(url)
+        request = urlopen(final_url)
         content = request.read()
 
         json_content = json.loads(content)
@@ -87,13 +92,14 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
         items = json_content['items']
         ret = []
         guids = []
+
         for item in items:
             name = item.get('name')
             description = item.get('description')
             subjects = item.get('subjects')
-            global_id = item.get('global_id')
+            doc_id = item.get(self.source_config['id_field_name'])
             log.info('%s: found %s %s %s', "Data", name, description, subjects)
-            guids.append(global_id)
+            guids.append(doc_id)
             ret.append({'name': name, 'description': description, 'subjects': subjects, 'guid': global_id})
 
         return guids, ret
