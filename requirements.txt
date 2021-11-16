@@ -3,9 +3,6 @@ pika>=1.1.0
 pyOpenSSL==18.0.0
 redis
 requests>=2.11.1
-six>=1.12.0
-pylons~=1.0.3
 ckan~=2.9.4
 setuptools~=57.0.0
 pytest~=6.2.5
-ckantoolkit==0.0.3

@@ -3,11 +3,10 @@ import logging
 import uuid
 from urllib.request import urlopen
 
-from pylons import config
-
 from ckan import logic
 from ckan import model
 from ckan import plugins as p
+from ckan.common import config
 from ckan.model import Session
 
 from ckan.plugins.core import SingletonPlugin, implements
@@ -82,8 +81,8 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
     def _get_resources(self, url):
         """ return name, descriptions and subjects """
         filter_str = self.source_config('filter', '*')
-        final_url = '%s/api/search?q=%s'.format(url, filter_str)
-        log.info('Retrieving data from URL %s', url)
+        final_url = f'{url}/api/search?q={filter_str}'
+        log.info(f'Retrieving data from URL {url}')
         request = urlopen(final_url)
         content = request.read()
 
@@ -98,7 +97,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
             description = item.get('description')
             subjects = item.get('subjects')
             doc_id = item.get(self.source_config['id_field_name'])
-            log.info('%s: found %s %s %s', "Data", name, description, subjects)
+            log.info(f'Data: found {name} {description} {subjects}')
             guids.append(doc_id)
             ret.append({'name': name, 'description': description, 'subjects': subjects, 'guid': global_id})
 
@@ -106,7 +105,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
 
     def gather_stage(self, harvest_job):
         log = logging.getLogger(__name__ + '.gather')
-        log.debug('%s gather_stage for job: %r', self.harvester_name(), harvest_job)
+        log.debug(f'{self.harvester_name()} gather_stage for job: {harvest_job}')
         # Get source URL
         url = harvest_job.source.url
 
@@ -115,7 +114,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
         try:
             local_guids, data = self._get_resources(url)
         except Exception as e:
-            self._save_gather_error('Error harvesting %s: %s' % (self.harvester_name(), e), harvest_job)
+            self._save_gather_error(f'Error harvesting {self.harvester_name()}: {harvest_job}')
             return None
 
         query = model.Session.query(HarvestObject.guid, HarvestObject.package_id). \
@@ -128,7 +127,6 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
 
         guids_in_db = set(guid_to_package_id.keys())
 
-        # log.debug('Starting gathering for %s' % url)
         guids_in_harvest = local_guids
 
         new = guids_in_harvest - guids_in_db
@@ -171,7 +169,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
             obj.save()
 
         if len(ids) == 0:
-            self._save_gather_error('No records received from the %s service' % self.harvester_name(), harvest_job)
+            self._save_gather_error(f'No records received from the {self.harvester_name()} service {harvest_job}')
             return None
 
         return ids
@@ -182,7 +180,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
     def import_stage(self, harvest_object):
 
         log = logging.getLogger(__name__ + '.import')
-        log.debug('%s: Import stage for harvest object: %s', self.harvester_name(), harvest_object.id)
+        log.debug(f'{self.harvester_name()}: Import stage for harvest object: {harvest_object.id}')
 
         if not harvest_object:
             log.error('No harvest object received')
@@ -191,7 +189,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
         if not harvest_object.content:
             log.error('Harvest object contentless')
             self._save_object_error(
-                'Empty content for object %s' % harvest_object.id,
+                f'Empty content for object {harvest_object.id}',
                 harvest_object,
                 'Import'
             )
@@ -270,7 +268,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
                         package_index = PackageSearchIndex()
                         package_index.index_package(package_dict)
 
-                log.info('%s document with GUID %s unchanged, skipping...', self.harvester_name(), harvest_object.guid)
+                log.info(f'{self.harvester_name()} document with GUID {harvest_object.id} unchanged, skipping...')
                 model.Session.commit()
 
                 return True
@@ -327,10 +325,9 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
 
             try:
                 package_id = p.toolkit.get_action('package_create')(context, package_dict)
-                log.info('%s: Created new package %s with guid %s', self.harvester_name(), package_id,
-                         harvest_object.guid)
+                log.info(f'{self.harvester_name()}: Created new package {package_id} with guid {harvest_object.guid}')
             except p.toolkit.ValidationError as e:
-                self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
+                self._save_object_error(f'Validation Error: {e.error_summary} {harvest_object} Import')
                 return False
 
         elif status == 'change':
@@ -343,9 +340,9 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
             package_dict['id'] = harvest_object.package_id
             try:
                 package_id = p.toolkit.get_action('package_update')(context, package_dict)
-                log.info('%s updated package %s with guid %s', self.harvester_name(), package_id, harvest_object.guid)
+                log.info(f'{self.harvester_name()} updated package {package_id} with guid {harvest_object.guid}')
             except p.toolkit.ValidationError as e:
-                self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
+                self._save_object_error(f'Validation Error: {e.error_summary} {harvest_object} Import')
                 return False
 
         model.Session.commit()
@@ -359,7 +356,7 @@ class DataVerseHarvester(HarvesterBase, SingletonPlugin):
         '''
         if config_str:
             self.source_config = json.loads(config_str)
-            log.debug('%s Using config: %r', self.harvester_name(), self.source_config)
+            log.debug(f'{self.harvester_name()} Using config: {self.source_config}')
         else:
             self.source_config = {}
 
